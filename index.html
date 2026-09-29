@@ -912,7 +912,7 @@
                     <div class="price">$20</div>
                     <ul>
                         <li><span class="tick">&#10003;</span> Private 2x FPS boost</li>
-                        <li><span class="tick">&#10003;</span> Bound to your Minecraft account</li>
+                        <li><span class="tick">&#10003;</span> Activates on your Minecraft account</li>
                         <li><span class="tick">&#10003;</span> Active on all your instances</li>
                         <li><span class="tick">&#10003;</span> Never expires</li>
                     </ul>
@@ -927,10 +927,10 @@
 
             <div class="how-to-redeem">
                 <h2 class="section-title">How to <span>Redeem</span></h2>
-                <p class="section-sub">It takes about 30 seconds. Codes are single-use and locked to the Minecraft username you provide.</p>
+                <p class="section-sub">It takes about 30 seconds. Codes are single-use and activate on whichever signed-in Minecraft account redeems them.</p>
                 <div class="steps">
                     <div class="step"><div class="num"></div><p>Choose the <b>Permanent</b> plan above and pay with PayPal, LTC, or SOL.</p></div>
-                    <div class="step"><div class="num"></div><p>We confirm your payment and send the code to you.</p></div>
+                    <div class="step"><div class="num"></div><p>LTC codes unlock <b>automatically</b> once the network confirms your payment; PayPal &amp; SOL codes are confirmed and sent to you.</p></div>
                     <div class="step"><div class="num"></div><p>Open the <b>Sift Client</b> launcher and sign in with your Microsoft account.</p></div>
                     <div class="step"><div class="num"></div><p>Go to the <b>&#9733; Lite</b> tab, paste in your code, launch any instance. Done.</p></div>
                 </div>
@@ -956,7 +956,7 @@
         </details>
         <details>
             <summary>Can I share my code?</summary>
-            <p>No. Every code is single-use and locked to the Minecraft username you provide at purchase. Sharing won't work.</p>
+            <p>No. Every code is single-use &mdash; it activates exactly one Minecraft account. Keep it private.</p>
         </details>
         <details>
             <summary>Which payment methods do you accept?</summary>
@@ -1015,11 +1015,18 @@
             </div>
 
             <div class="pay-pane" id="pane-ltc" style="display:none">
-                <p class="modal-text">Send the USD equivalent in LTC to this address, and put your Minecraft username in the payment note.</p>
+                <p class="modal-text">Send the USD equivalent in LTC to this address. Your code unlocks automatically once the network confirms your payment.</p>
                 <img id="qr-ltc" class="qr" alt="LTC QR code">
                 <div class="addr" id="addr-ltc">&hellip;</div>
                 <div class="amount" id="amount-ltc">Loading LTC price&hellip;</div>
                 <button class="copy-btn" id="copyLtc">Copy address</button>
+                <button class="btn btn-primary btn-block" id="getCodeLtc">I've sent the LTC &mdash; get my code</button>
+                <div class="modal-status" id="ltcMsg"></div>
+                <div id="ltcGrant" style="display:none;margin-top:.75rem;padding:1rem;border:1px solid rgba(0,212,255,.3);border-radius:10px;background:rgba(0,212,255,.06);">
+                    <div style="font-weight:800;margin-bottom:.5rem;">&#10003; Payment confirmed &mdash; your Lite code</div>
+                    <div id="ltcCodeValue" style="font-family:Consolas,Menlo,monospace;font-size:1.25rem;letter-spacing:2px;color:var(--secondary);word-break:break-all;margin-bottom:.75rem;">&hellip;</div>
+                    <div class="modal-text" style="font-size:.85rem;">Redeem it in the <b>Sift Client</b> launcher under the <b>&#9733; Lite</b> tab, signed in with the Minecraft account above.</div>
+                </div>
             </div>
 
             <div class="pay-pane" id="pane-sol" style="display:none">
@@ -1090,7 +1097,8 @@
             price: 20,                                  // USD
             paypalUrl: "https://www.paypal.com/ncp/payment/L9ASEL9FN8KS4", // PayPal checkout page
             ltcAddress: "LKnxoffLk7mrHrtQDxL9FKWqmUeCD8iKVA", // Litecoin receiving wallet
-            solAddress: "5itMqG3gNTFYbxXDM7X2Y4q6U7WZijPAb98SayuJzSw6"  // Solana receiving wallet
+            solAddress: "5itMqG3gNTFYbxXDM7X2Y4q6U7WZijPAb98SayuJzSw6", // Solana receiving wallet
+            ltcService: ""  // Cloudflare Worker URL for auto LTC grants, e.g. "https://sift-lite-grant.<you>.workers.dev"
         };
 
         const $ = id => document.getElementById(id);
@@ -1099,19 +1107,28 @@
         // Live crypto price feed (CoinGecko, public + CORS-enabled) - best effort only;
         // addresses + QR always render regardless of whether the feed responds.
         async function loadPrices() {
-            let j = null;
-            try {
-                const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=litecoin,solana&vs_currencies=usd");
-                if (r.ok) j = await r.json();
-            } catch (e) { /* price feed unavailable - fallback text stays */ }
-            if (j && j.litecoin && j.litecoin.usd > 0) {
-                const v = SITE.price / j.litecoin.usd;
+            let ltcUsd = 0, solUsd = 0;
+            // Prefer the grant Worker's price (same source the payment check uses) when configured.
+            if (SITE.ltcService) {
+                try {
+                    const r = await fetch(SITE.ltcService + "/price");
+                    if (r.ok) { const j = await r.json(); if (j && j.priceUSD > 0) ltcUsd = j.priceUSD; }
+                } catch (e) { }
+            }
+            if (!ltcUsd) {
+                try {
+                    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=litecoin,solana&vs_currencies=usd");
+                    if (r.ok) { const j = await r.json(); if (j) { ltcUsd = (j.litecoin && j.litecoin.usd) || 0; solUsd = (j.solana && j.solana.usd) || 0; } }
+                } catch (e) { /* price feed unavailable - fallback text stays */ }
+            }
+            if (ltcUsd > 0) {
+                const v = SITE.price / ltcUsd;
                 $("amount-ltc").textContent = SITE.price.toFixed(2) + " USD \u2248 " + F.format(v) + " LTC";
                 $("qr-ltc").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
                     encodeURIComponent("litecoin:" + SITE.ltcAddress + "?amount=" + v.toFixed(6));
             }
-            if (j && j.solana && j.solana.usd > 0) {
-                const v = SITE.price / j.solana.usd;
+            if (solUsd > 0) {
+                const v = SITE.price / solUsd;
                 $("amount-sol").textContent = SITE.price.toFixed(2) + " USD \u2248 " + F.format(v) + " SOL";
                 $("qr-sol").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
                     encodeURIComponent("solana:" + SITE.solAddress + "?amount=" + v.toFixed(6));
@@ -1152,11 +1169,60 @@ function switchPay(method) {
             loadPrices();
         };
 
+        // ---- LTC auto-grant: ask the Worker to verify payment on-chain ----
+        let ltcPoll = null;
+        async function claimLtc() {
+            const user = $("buyUsername").value.trim();
+            $("ltcMsg").textContent = "";
+            if (!/^[A-Za-z0-9_]{3,16}$/.test(user)) { $("ltcMsg").textContent = "Enter your Minecraft username first (letters, numbers, underscore, 3\u201316)."; return; }
+            const svc = SITE.ltcService;
+            if (!svc) {
+                $("ltcMsg").textContent = "Send the payment and include your Minecraft username in the transaction note \u2014 your code is sent once the payment is confirmed.";
+                return;
+            }
+            clearInterval(ltcPoll);
+            $("ltcMsg").textContent = "Checking the Litecoin network\u2026";
+            const tryClaim = async () => {
+                let j = null;
+                try {
+                    const r = await fetch(svc + "/claim", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username: user })
+                    });
+                    j = await r.json();
+                } catch (e) { j = null; }
+                if (j && j.ok) {
+                    clearInterval(ltcPoll);
+                    $("ltcMsg").textContent = "";
+                    $("ltcGrant").style.display = "block";
+                    $("ltcCodeValue").textContent = j.code;
+                    return;
+                }
+                const reason = j && j.reason ? j.reason : "unreachable";
+                if (reason === "no_payment") {
+                    $("ltcMsg").textContent = "No matching payment yet \u2014 I\u2019ll keep checking for up to 5 minutes. It usually takes 2\u20135 minutes after you send it.";
+                    return;
+                }
+                clearInterval(ltcPoll);
+                $("ltcMsg").textContent =
+                    reason === "sold_out" ? "All Lite codes are sold out right now \u2014 contact us." :
+                    reason === "slow_down" ? "Too many checks \u2014 wait a moment and click again." :
+                    reason === "invalid_username" ? "Enter your Minecraft username (letters, numbers, underscore, 3\u201316)." :
+                    reason === "chain_unavailable" ? "The LTC network check hiccuped \u2014 click again in a few seconds." :
+                    "Couldn\u2019t verify right now \u2014 click again in a moment.";
+            };
+            tryClaim();
+            ltcPoll = setInterval(tryClaim, 8000);
+            setTimeout(() => clearInterval(ltcPoll), 5 * 60 * 1000);
+        }
+
         window.__siftBoot = "all";
         $("closeBuy").onclick = () => $("checkoutModal").classList.remove("show");
         $("checkoutModal").onclick = e => { if (e.target === $("checkoutModal")) $("checkoutModal").classList.remove("show"); };
         document.querySelectorAll(".pay-tab").forEach(t => t.onclick = () => switchPay(t.dataset.pay));
         $("copyLtc").onclick = () => copyAddr("ltc", "Copy address");
+        $("getCodeLtc").onclick = claimLtc;
         $("copySol").onclick = () => copyAddr("sol", "Copy address");
         $("buyUsername").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); document.querySelector(".pay-tab.active").click(); } });
     </script>
