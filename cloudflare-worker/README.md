@@ -1,9 +1,9 @@
-# Sift Lite — LTC auto-grant (Cloudflare Worker)
+# Sift Lite — crypto auto-grant (Cloudflare Worker)
 
-When a buyer pays with LTC and clicks the "Get my code" button, the site asks this
-Worker to check the LTC blockchain. If your wallet received the ~$20 payment in the
-last hour, the Worker takes one unused code out of the pool and returns it. The same
-payment can never claim a second code.
+When a buyer pays with **LTC, native SOL, or USDC** and clicks the "Get my code"
+button, the site asks this Worker to check the blockchain. If your wallet received
+the ~$20 payment in the last hour, the Worker takes one unused code out of the pool
+and returns it. The same payment can never claim a second code.
 
 Everything below is free (Cloudflare free tier). Two ways to deploy: **Dashboard**
 (recommended, no Node needed) or **wrangler**.
@@ -56,18 +56,20 @@ wrangler kv key put --binding=POOL codes '["BBV7-NNYA...."]'
 In `index.html` → **PAYMENT SETTINGS** → set:
 
 ```
-ltcService: "https://sift-lite-grant.<your-subdomain>.workers.dev"
+grantService: "https://sift-lite-grant.<your-subdomain>.workers.dev"
 ```
 
 (Yours will be `https://sift-lite-grant.<youraccount>.workers.dev` — shown on the
-Worker page.) Commit + push; GitHub Pages picks it up.
+Worker page.) Commit + push; GitHub Pages picks it up. The same service powers both
+the LTC and SOL/USDC auto-grant buttons.
 
 ## 5. Test
 
-- `GET /price` → `{"ok":true,"priceUSD":...,"targetSats":...}`.
-- Send a small LTC payment to the wallet, then from the browser console:
-  `fetch("https://…worker…/claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:"TestUser1"})})`
-  → confirm it returns `{"ok":true,"code":"…",...}` once the tx confirms.
+- `GET /price` → `{"ok":true,"ltc":{priceUSD,targetSats},"sol":{priceUSD,targetLamports,targetUsdc}}`.
+- Send a small LTC or SOL payment to the wallet, then from the browser console:
+  `fetch("https://…worker…/claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:"TestUser1",currency:"ltc"})})`
+  → confirm it returns `{"ok":true,"code":"…",...}` once the tx confirms. For SOL use
+  `currency:"sol"` (native SOL or USDC both work).
 - Run it again with a different username → same code back (`already:true`).
 - Buyer then opens the **Sift Client** launcher, **Lite** tab, signs in with the
   account named `TestUser1`, pastes the code, and it activates.
@@ -76,9 +78,11 @@ Worker page.) Commit + push; GitHub Pages picks it up.
 
 - The Worker verifies on-chain **server-side**; buyers can't forge claims or read the
   pool (codes live in KV, never in the page).
-- Payments are recognized once they have a confirmation (LTC ≈ 2–5 min). The site
-  keeps polling for 5 minutes after the buyer clicks, so they just wait a moment.
+- Payments are recognized once they have a confirmation (LTC ≈ 2–5 min, SOL a few
+  seconds). The site keeps polling for 5 minutes after the buyer clicks.
+- SOL payments can be sent as **native SOL or USDC**; USDC is accepted at the exact
+  USD price so tiny price swings never block a purchase.
 - Refill the pool by minting more codes and appending them to the `codes` value.
-- The key `claim_<txid>` records make re-clicks return the same code instead of
-  burning new ones — so "get the code every single time" holds even on retries.
-- Chain data comes from the public `litecoinspace.org` electrs API.
+- The key `claim_<cur>_<txid>` records make re-clicks return the same code instead
+  of burning new ones — so "get the code every single time" holds even on retries.
+- Chain data comes from `litecoinspace.org` (LTC) and public Solana RPCs.

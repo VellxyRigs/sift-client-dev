@@ -1,30 +1,55 @@
 // ============================================================================
-//  Sift Client Lite - LTC auto-grant Worker
-//  Verifies a Litecoin payment to the seller's wallet server-side, then hands
-//  out one unused code from the pool. Codes come from the launcher's
-//  /api/lite/mint (minted WITHOUT a username so any account can redeem them).
+//  Sift Client Lite - crypto auto-grant Worker (LTC + SOL + USDC)
+//
+//  Verifies a crypto payment (Litecoin, native SOL, or USDC) to the seller's
+//  wallet server-side, then hands out one unused code from the pool. Codes come
+//  from the launcher's /api/lite/mint (minted WITHOUT a username so any signed-in
+//  account can redeem them).
 //
 //  KV namespace binding: POOL
 //    key  "codes"   -> JSON array of unused codes, e.g.  ["AAAA-...", "BBBB-..."]
-//    key  "price"   -> {"usd":123.45, "at":...}  (auto-cached, no need to set)
-//    key  "claim_<txid>" -> {code, username, ts}  (auto-written; makes grants
-//                           idempotent so a duplicate claim returns the same code)
+//    key  "price"   -> {"at":..., "ltc":..., "sol":...}  (auto-cached, optional)
+//    key  "claim_<cur>_<txid>" -> {code, username, ts}   (auto-written; makes
+//                                 grants idempotent,  duplicate claims return the
+//                                 same code instead of burning a new one)
+//
+//  Endpoints:
+//    GET  /price                       -> current prices + per-currency thresholds
+//    POST /claim {username, currency}  -> currency: "ltc" | "sol" (default "ltc")
 // ============================================================================
 
 const CONFIG = {
-  // The wallet buyers send LTC to (keep in sync with the site).
-  LTC_ADDRESS: "LKnxoffLk7mrHrtQDxL9FKWqmUeCD8iKVA",
   TARGET_USD: 20,             // product price in USD
   ACCEPT_RATIO: 0.9,          // accept as low as 90% of the target (fees/price drift)
-  WINDOW_SEC: 3600,           // only txs confirmed in the last hour are considered the payment
-  PRICE_FALLBACK_USD: 250,    // used only if live price AND cached price are both unavailable
-  USERNAME_RE: /^[A-Za-z0-9_]{3,16}$/
+  WINDOW_SEC: 3600,           // only transactions confirmed in the last hour count as the payment
+  PRICE_FALLBACK_USD_LTC: 250,
+  PRICE_FALLBACK_USD_SOL: 250,
+  USERNAME_RE: /^[A-Za-z0-9_]{3,16}$/,
+
+  LTC: {
+    name: "ltc",
+    address: "LKnxoffLk7mrHrtQDxL9FKWqmUeCD8iKVA",     // Litecoin receiving wallet
+    priceId: "litecoin",
+    priceFallback: 250,
+    txsUrl: "https://litecoinspace.org/api/address/LKnxoffLk7mrHrtQDxL9FKWqmUeCD8iKVA/txs"
+  },
+
+  SOL: {
+    name: "sol",
+    address: "5itMqG3gNTFYbxXDM7X2Y4q6U7WZijPAb98SayuJzSw6", // Solana receiving wallet
+    priceId: "solana",
+    priceFallback: 250,
+    usdcMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    rpcs: [
+      "https://api.mainnet-beta.solana.com",
+      "https://solana-rpc.publicnode.com",
+      "https://api.rpcpool.com"
+    ]
+  }
 };
 
-const API = {
-  TXS: "https://litecoinspace.org/api/address/" + CONFIG.LTC_ADDRESS + "/txs",
-  PRICE: "https://api.coingecko.com/api/v3/simple/price?ids=litecoin&vs_currencies=usd"
-};
+const COINGECKO = "https://api.coingecko.com/api/v3/simple/price?ids=" +
+  CONFIG.LTC.priceId + "," + CONFIG.SOL.priceId + "&vs_currencies=usd";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -39,58 +64,149 @@ function json(data, status) {
   });
 }
 
-async function ltcPriceUsd(env) {
+// ---------------------------------------------------------------- price
+async function prices(env) {
+  let ltc = 0, sol = 0;
   try {
-    const r = await fetch(API.PRICE, { cf: { cacheTtl: 60, cacheEverything: true } });
+    const r = await fetch(COINGECKO, { cf: { cacheTtl: 60, cacheEverything: true } });
     if (r.ok) {
       const j = await r.json();
-      if (j && j.litecoin && j.litecoin.usd > 0) {
-        const rec = { usd: j.litecoin.usd, at: Date.now() };
-        try { await env.POOL.put("price", JSON.stringify(rec), { expirationTtl: 600 }); } catch (e) {}
-        return j.litecoin.usd;
+      ltc = (j && j[CONFIG.LTC.priceId] && j[CONFIG.LTC.priceId].usd) || 0;
+      sol = (j && j[CONFIG.SOL.priceId] && j[CONFIG.SOL.priceId].usd) || 0;
+      if (ltc > 0 && sol > 0) {
+        try { await env.POOL.put("price", JSON.stringify({ at: Date.now(), ltc, sol }), { expirationTtl: 600 }); } catch (e) {}
+        return { ltc, sol };
       }
     }
   } catch (e) {}
   try {
     const c = await env.POOL.get("price");
-    if (c) { const j = JSON.parse(c); if (j && j.usd > 0) return j.usd; }
+    if (c) { const p = JSON.parse(c); if (p && p.ltc > 0 && p.sol > 0) return { ltc: p.ltc, sol: p.sol }; }
   } catch (e) {}
-  return CONFIG.PRICE_FALLBACK_USD;
+  return { ltc: CONFIG.LTC.priceFallback, sol: CONFIG.SOL.priceFallback };
 }
 
-function thresholdSats(priceUsd) {
-  return Math.ceil(((CONFIG.TARGET_USD * CONFIG.ACCEPT_RATIO) / priceUsd) * 1e8);
+// LTC threshold in satoshis (1 LTC = 1e8 sat), SOL/USDC threshold in lamports or USD-units (1e9 lamports, USDC 1e6)
+function threshold(cur, priceUsd) {
+  const per1e = CONFIG.TARGET_USD * CONFIG.ACCEPT_RATIO / priceUsd;
+  return cur === "ltc" ? Math.ceil(per1e * 1e8) : Math.ceil(per1e * 1e9);
 }
 
-async function fetchTxs() {
-  const r = await fetch(API.TXS);
-  if (!r.ok) throw new Error("chain api " + r.status);
+// ---------------------------------------------------------------- LTC
+async function ltcTxs() {
+  const r = await fetch(CONFIG.LTC.txsUrl);
+  if (!r.ok) throw new Error("ltc api " + r.status);
   return r.json();
 }
 
-// Most recent confirmed tx that pays >= threshold sats to the merchant within the window.
-function findPayment(txs, thr, now) {
+function findLtcPayment(txs, thr, now) {
   let best = null;
   for (const tx of txs) {
     if (!tx || !tx.status || !tx.status.confirmed) continue;
     const bt = (tx.status.block_time || 0) * 1000;
     if (now - bt > CONFIG.WINDOW_SEC * 1000) continue;
     let received = 0;
-    for (const v of (tx.vout || [])) if (v.scriptpubkey_address === CONFIG.LTC_ADDRESS) received += v.value || 0;
+    for (const v of (tx.vout || [])) if (v.scriptpubkey_address === CONFIG.LTC.address) received += v.value || 0;
     if (received < thr) continue;
     if (!best || bt > best.time) best = { txid: tx.txid, received, time: bt };
   }
   return best;
 }
 
-// per-IP in-memory rate limit (fine for a small merchant; Workers reset on eviction)
-const rate = new Map();
+// ---------------------------------------------------------------- SOL
+async function solRpc(method, params) {
+  let lastErr = null;
+  for (const url of CONFIG.SOL.rpcs) {
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
+      });
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (j && j.error) { lastErr = new Error(String(j.error.message || j.error.code)); continue; }
+      if (j && j.result !== undefined) return j.result;
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("sol rpc unavailable");
+}
+
+async function solRecent() {
+  return solRpc("getSignaturesForAddress", [
+    CONFIG.SOL.address,
+    { limit: 25, commitment: "finalized" }
+  ]);
+}
+
+async function solTx(sig) {
+  return solRpc("getTransaction", [
+    sig,
+    { maxSupportedTransactionVersion: 0, commitment: "finalized" }
+  ]);
+}
+
+function solNativeDelta(tx) {
+  const keys = (tx.transaction && tx.transaction.message && tx.transaction.message.accountKeys) || [];
+  const pre = (tx.meta && tx.meta.preBalances) || [];
+  const post = (tx.meta && tx.meta.postBalances) || [];
+  let delta = 0;
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i].pubkey === CONFIG.SOL.address && i < post.length && i < pre.length) delta += post[i] - pre[i];
+  }
+  return delta; // lamports; negative = merchant spent
+}
+
+function solUsdcIn(tx) {
+  let inTokens = 0;
+  const pre = new Map();
+  const post = new Map();
+  for (const tb of (tx.meta && tx.meta.preTokenBalances) || []) {
+    if (tb.owner === CONFIG.SOL.address && tb.mint === CONFIG.SOL.usdcMint)
+      pre.set(tb.accountIndex, tb.uiTokenAmount ? tb.uiTokenAmount.uiAmount || 0 : 0);
+  }
+  for (const tb of (tx.meta && tx.meta.postTokenBalances) || []) {
+    if (tb.owner === CONFIG.SOL.address && tb.mint === CONFIG.SOL.usdcMint)
+      post.set(tb.accountIndex, tb.uiTokenAmount ? tb.uiTokenAmount.uiAmount || 0 : 0);
+  }
+  for (const [idx, v] of post) {
+    const inBefore = pre.get(idx) || 0;
+    const d = v - inBefore;
+    if (d > 0) inTokens += d;
+  }
+  return inTokens; // USDC units (6 decimals already normalized by uiAmount)
+}
+
+async function scanSolPayments(now, nativeThr, usdcThr) {
+  const sigs = await solRecent();
+  let best = null;
+  for (const s of sigs) {
+    if (!s || s.err) continue;
+    const bt = s.blockTime ? s.blockTime * 1000 : 0;
+    if (!bt || now - bt > CONFIG.WINDOW_SEC * 1000) continue;
+    let tx = null;
+    try { tx = await solTx(s.signature); } catch (e) { continue; }
+    if (!tx || !tx.meta) continue;
+    const native = solNativeDelta(tx);
+    const usdcIn = solUsdcIn(tx);
+    let received = 0;
+    let ok = false;
+    if (native >= nativeThr) { received = native; ok = true; }
+    else if (usdcIn >= usdcThr) { received = usdcIn; ok = true; }
+    if (!ok) continue;
+    if (!best || bt > best.time) best = { txid: s.signature, received, kind: native >= nativeThr ? "sol" : "usdc", time: bt };
+  }
+  return best;
+}
+
+// ---------------------------------------------------------------- claim
+const rate = new Map(); // ip -> timestamps
 
 async function claim(request, env) {
   const ip = request.headers.get("cf-connecting-ip") || "unknown";
   const now = Date.now();
   const stamps = (rate.get(ip) || []).filter(t => now - t < 60000);
-  if (stamps.length >= 6) return json({ ok: false, reason: "slow_down" }, 429);
+  if (stamps.length >= 30) return json({ ok: false, reason: "slow_down" }, 429);
   stamps.push(now);
   rate.set(ip, stamps);
 
@@ -98,20 +214,26 @@ async function claim(request, env) {
   try { body = await request.json(); } catch (e) { return json({ ok: false, reason: "bad_request" }); }
   const username = String(body.username || "").trim();
   if (!CONFIG.USERNAME_RE.test(username)) return json({ ok: false, reason: "invalid_username" });
+  const currency = body.currency === "sol" ? "sol" : "ltc";
 
-  const usd = await ltcPriceUsd(env);
-  const thr = thresholdSats(usd);
+  const px = await prices(env);
+  const cur = currency === "ltc" ? CONFIG.LTC : CONFIG.SOL;
+  const thr = currency === "ltc" ? threshold("ltc", px.ltc) : threshold("sol", px.sol);
+  const usdcThr = currency === "sol" ? CONFIG.TARGET_USD * CONFIG.ACCEPT_RATIO : 0;
 
-  let txs;
-  try { txs = await fetchTxs(); } catch (e) { return json({ ok: false, reason: "chain_unavailable" }); }
-
-  const pay = findPayment(txs, thr, now);
+  let pay = null;
+  try {
+    if (currency === "ltc") pay = findLtcPayment(await ltcTxs(), thr, now);
+    else pay = await scanSolPayments(now, thr, usdcThr);
+  } catch (e) {
+    return json({ ok: false, reason: "chain_unavailable" });
+  }
   if (!pay) return json({ ok: false, reason: "no_payment" });
 
-  // idempotent: same tx never burns a second code
+  const claimKey = "claim_" + currency + "_" + pay.txid;
   try {
-    const existing = JSON.parse((await env.POOL.get("claim_" + pay.txid)) || "null");
-    if (existing) return json({ ok: true, code: existing.code, txid: pay.txid, already: true });
+    const existing = JSON.parse((await env.POOL.get(claimKey)) || "null");
+    if (existing) return json({ ok: true, code: existing.code, txid: pay.txid, currency, already: true });
   } catch (e) {}
 
   let codes = [];
@@ -120,9 +242,15 @@ async function claim(request, env) {
 
   const code = codes.shift();
   await env.POOL.put("codes", JSON.stringify(codes));
-  await env.POOL.put("claim_" + pay.txid, JSON.stringify({ code, username, ts: now }));
+  await env.POOL.put(claimKey, JSON.stringify({ code, username, ts: now }));
 
-  return json({ ok: true, code, txid: pay.txid, already: false, priceUSD: usd, receivedLTC: pay.received / 1e8 });
+  return json({
+    ok: true, code, txid: pay.txid, currency,
+    already: false,
+    priceUSD: currency === "ltc" ? px.ltc : px.sol,
+    received: pay.received,
+    kind: pay.kind || currency
+  });
 }
 
 export default {
@@ -131,8 +259,12 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/price") {
-      const usd = await ltcPriceUsd(env);
-      return json({ ok: true, priceUSD: usd, targetSats: thresholdSats(usd) });
+      const px = await prices(env);
+      return json({
+        ok: true,
+        ltc: { priceUSD: px.ltc, targetSats: threshold("ltc", px.ltc) },
+        sol: { priceUSD: px.sol, targetLamports: threshold("sol", px.sol), targetUsdc: CONFIG.TARGET_USD * CONFIG.ACCEPT_RATIO }
+      });
     }
 
     if (url.pathname === "/claim" && request.method === "POST") return claim(request, env);
