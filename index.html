@@ -854,7 +854,7 @@
             <h1>Elevate Your <span>Minecraft</span> Game</h1>
             <p>Sift Client is a free, modern Minecraft enhancement launcher. Clean, fast, and built for performance — no bloat, no catches.</p>
             <div class="button-group">
-                <a href="#" id="heroDownload" class="btn btn-primary">Download Free</a>
+                <a href="#" id="heroDownload" class="btn btn-primary" data-download>Download Free</a>
                 <a href="#lite" class="btn btn-secondary">&#9733; Unlock Lite</a>
             </div>
         </div>
@@ -968,7 +968,7 @@
     <section class="download" id="download">
         <h2>Ready to <span>Upgrade?</span></h2>
         <p>Join players already using Sift. Download the free launcher now and experience the difference.</p>
-        <a href="#" id="downloadBtn" class="btn btn-primary">Download &amp; Install</a>
+        <a href="#" id="downloadBtn" class="btn btn-primary" data-download>Download &amp; Install</a>
         <p style="margin-top:.85rem;font-size:.85rem;opacity:.75;">Windows &middot; one installer &middot; free forever</p>
         <div id="installHelp" style="display:none;margin-top:1.5rem;padding:1.5rem;border:1px solid rgba(0,212,255,.3);border-radius:14px;background:rgba(0,212,255,.05);text-align:left;max-width:640px;margin-left:auto;margin-right:auto;">
             <div style="font-weight:800;font-size:1.1rem;margin-bottom:.5rem;">&#10003; Your download has started</div>
@@ -1096,11 +1096,13 @@
     </script>
     <script>
         window.__siftBoot = "top";
-        // Smooth scroll for nav links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        // Smooth scroll for nav links (skip download links, which get a real URL later)
+        document.querySelectorAll('a[href^="#"]:not([data-download])').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
+                const href = this.getAttribute('href') || '';
+                if (!href.startsWith('#')) return; // never querySelector() a full URL
                 e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
+                const target = document.querySelector(href);
                 if (target) {
                     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
