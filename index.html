@@ -618,6 +618,203 @@
             color: var(--secondary);
         }
 
+        .price {
+            font-size: 3rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--secondary), var(--primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Checkout modal */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 4, 10, 0.85);
+            backdrop-filter: blur(6px);
+            display: none;
+            align-items: flex-start;
+            justify-content: center;
+            z-index: 2000;
+            padding: 4rem 1rem;
+            overflow-y: auto;
+        }
+
+        .modal-backdrop.show {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--darker);
+            border: 1px solid rgba(0, 212, 255, 0.25);
+            border-radius: 16px;
+            max-width: 460px;
+            width: 100%;
+            padding: 2rem;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-bottom: 0.4rem;
+        }
+
+        .modal-title .price-inline {
+            color: var(--primary);
+        }
+
+        .modal-sub {
+            color: rgba(224, 230, 255, 0.7);
+            font-size: 0.95rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-text {
+            color: rgba(224, 230, 255, 0.75);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .pay-tabs {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            background: rgba(26, 36, 81, 0.4);
+            border: 1px solid rgba(0, 212, 255, 0.15);
+            border-radius: 10px;
+            padding: 0.35rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .pay-tab {
+            border: 1px solid transparent;
+            background: transparent;
+            color: rgba(224, 230, 255, 0.6);
+            font-weight: 700;
+            font-size: 0.9rem;
+            padding: 0.6rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .pay-tab.active {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(255, 0, 255, 0.2));
+            border-color: var(--secondary);
+            color: var(--text);
+        }
+
+        .pay-pane {
+            margin-bottom: 1.25rem;
+            text-align: center;
+        }
+
+        .btn-block {
+            display: block;
+            width: 100%;
+            text-align: center;
+            margin-top: 0.75rem;
+        }
+
+        .qr {
+            width: 160px;
+            height: 160px;
+            border-radius: 10px;
+            margin: 1rem auto;
+            background: white;
+            padding: 8px;
+        }
+
+        .addr {
+            font-family: 'Consolas', 'Menlo', monospace;
+            font-size: 0.8rem;
+            background: rgba(26, 36, 81, 0.6);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            border-radius: 8px;
+            padding: 0.7rem;
+            margin: 0.5rem 0;
+            word-break: break-all;
+        }
+
+        .amount {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--secondary);
+            margin: 0.4rem 0 1rem 0;
+        }
+
+        .copy-btn {
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            background: rgba(0, 212, 255, 0.1);
+            color: var(--secondary);
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 0.4rem 1rem;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: var(--secondary);
+            color: var(--dark);
+        }
+
+        .memory-label {
+            display: block;
+            color: rgba(224, 230, 255, 0.8);
+            font-size: 0.85rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .text-input {
+            width: 100%;
+            background: rgba(26, 36, 81, 0.4);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: var(--secondary);
+        }
+
+        .modal-status {
+            color: var(--secondary);
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+            min-height: 1em;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .ghost-btn {
+            background: transparent;
+            border: 1px solid rgba(224, 230, 255, 0.3);
+            color: rgba(224, 230, 255, 0.8);
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 0.65rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .ghost-btn:hover {
+            border-color: var(--text);
+            color: var(--text);
+        }
+
         /* Scroll animations */
         @keyframes fadeInUp {
             from {
@@ -709,26 +906,10 @@
             <p class="section-sub">Sift Lite is a subscription boost that unlocks a private performance upgrade in the launcher — bound to your account, active on every instance.</p>
 
             <div class="plans">
-                <div class="plan">
-                    <h3>Lite &mdash; 30 Days</h3>
-                    <div class="duration">30<small> days</small></div>
-                    <ul>
-                        <li><span class="tick">&#10003;</span> Private 2x FPS boost</li>
-                        <li><span class="tick">&#10003;</span> Bound to your Minecraft account</li>
-                        <li><span class="tick">&#10003;</span> Active on all your instances</li>
-                        <li><span class="tick">&#10003;</span> Auto-disables after 30 days</li>
-                    </ul>
-                    <div class="paymethods">
-                        <span class="pay-pill">LTC</span>
-                        <span class="pay-pill">SOL</span>
-                        <span class="pay-pill">PayPal</span>
-                    </div>
-                    <a href="#footer" class="btn btn-secondary">Get a code</a>
-                </div>
-
                 <div class="plan permanent badge">
                     <h3>Lite &mdash; Permanent</h3>
-                    <div class="duration">Lifetime<small></small></div>
+                    <div class="duration">Lifetime</div>
+                    <div class="price">$20</div>
                     <ul>
                         <li><span class="tick">&#10003;</span> Private 2x FPS boost</li>
                         <li><span class="tick">&#10003;</span> Bound to your Minecraft account</li>
@@ -740,7 +921,7 @@
                         <span class="pay-pill">SOL</span>
                         <span class="pay-pill">PayPal</span>
                     </div>
-                    <a href="#footer" class="btn btn-primary">Get a code</a>
+                    <button class="btn btn-primary" id="buyBtn">Buy now &mdash; $20</button>
                 </div>
             </div>
 
@@ -763,11 +944,11 @@
         <p class="section-sub">Everything you need to know about Sift Lite.</p>
         <details>
             <summary>Is Lite the same as the free client?</summary>
-            <p>No. The Sift Client launcher and everything you see on this page is 100% free. Lite is an optional paid boost that unlocks a private FPS upgrade inside the launcher.</p>
+            <p>No. The Sift Client launcher and everything you see on this page is 100% free. Lite is a one-time purchase that unlocks a private FPS upgrade inside the launcher.</p>
         </details>
         <details>
-            <summary>How long does a 30-day code last?</summary>
-            <p>Exactly 30 days from the moment you redeem it. When it expires the boost disables automatically — no manual steps needed.</p>
+            <summary>Is it really permanent?</summary>
+            <p>Yes. Lite is a single $20 purchase and it never expires — the boost stays active on your account forever.</p>
         </details>
         <details>
             <summary>Does the Lite boost work on every instance?</summary>
@@ -817,6 +998,49 @@
         </div>
     </footer>
 
+    <!-- Checkout Modal -->
+    <div class="modal-backdrop" id="checkoutModal">
+        <div class="modal">
+            <div class="modal-title">Sift Lite <span class="price-inline">$20.00</span></div>
+            <p class="modal-sub">Lifetime boost &mdash; bound to your Minecraft username.</p>
+
+            <div class="pay-tabs">
+                <button class="pay-tab active" data-pay="paypal">PayPal</button>
+                <button class="pay-tab" data-pay="ltc">LTC</button>
+                <button class="pay-tab" data-pay="sol">SOL</button>
+            </div>
+
+            <div class="pay-pane" id="pane-paypal">
+                <p class="modal-text">Opens PayPal in a new tab. Add your Minecraft username as the note so we can match your code.</p>
+                <a id="paypalLink" class="btn btn-primary btn-block" target="_blank" rel="noopener">Pay $20.00 with PayPal</a>
+            </div>
+
+            <div class="pay-pane" id="pane-ltc" style="display:none">
+                <p class="modal-text">Send the USD equivalent in LTC to this address, then DM proof on Discord so we can mint your code.</p>
+                <img id="qr-ltc" class="qr" alt="LTC QR code">
+                <div class="addr" id="addr-ltc">&hellip;</div>
+                <div class="amount" id="amount-ltc">Loading LTC price&hellip;</div>
+                <button class="copy-btn" id="copyLtc">Copy address</button>
+            </div>
+
+            <div class="pay-pane" id="pane-sol" style="display:none">
+                <p class="modal-text">Send the USD equivalent in SOL to this address, then DM proof on Discord so we can mint your code.</p>
+                <img id="qr-sol" class="qr" alt="SOL QR code">
+                <div class="addr" id="addr-sol">&hellip;</div>
+                <div class="amount" id="amount-sol">Loading SOL price&hellip;</div>
+                <button class="copy-btn" id="copySol">Copy address</button>
+            </div>
+
+            <label class="memory-label" for="buyUsername">Your Minecraft username (the code is locked to it)</label>
+            <input type="text" id="buyUsername" placeholder="PlayerName" class="text-input" spellcheck="false">
+            <div class="modal-status" id="buyMsg"></div>
+
+            <div class="modal-actions">
+                <button class="ghost-btn" id="closeBuy">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Smooth scroll for nav links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -842,6 +1066,87 @@
         document.querySelectorAll('.feature-card, .plan, .step, .faq details').forEach(el => {
             if (el) observer.observe(el);
         });
+
+        // ================================================================
+        //  PAYMENT SETTINGS — paste your real info here
+        // ================================================================
+        const SITE = {
+            price: 20,                                   // USD
+            paypalHandle: "YOUR_PAYPAL_HANDLE",          // your PayPal.Me handle (paypal.me/<handle>)
+            ltcAddress: "YOUR_LTC_ADDRESS",              // Litecoin receiving wallet
+            solAddress: "YOUR_SOL_ADDRESS",              // Solana receiving wallet
+            discord: "https://discord.gg/YOUR_INVITE"    // where buyers DM proof / get codes
+        };
+
+        const $ = id => document.getElementById(id);
+        const F = Intl.NumberFormat("en-US", { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+
+        // Live crypto price feed (CoinGecko, public + CORS-enabled)
+        let ltcUsd = null, solUsd = null;
+        async function loadPrices() {
+            try {
+                const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=litecoin,solana&vs_currencies=usd");
+                const j = await r.json();
+                ltcUsd = j && j.litecoin ? j.litecoin.usd : null;
+                solUsd = j && j.solana ? j.solana.usd : null;
+                refreshAmounts();
+            } catch (e) { /* price feed unavailable — keep fallback text */ }
+        }
+
+        function refreshAmounts() {
+            const amt = SITE.price;
+            if (ltcUsd) {
+                const ltc = amt / ltcUsd;
+                $("amount-ltc").textContent = amt.toFixed(2) + " USD \u2248 " + F.format(ltc) + " LTC";
+                $("qr-ltc").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
+                    encodeURIComponent("litecoin:" + SITE.ltcAddress + "?amount=" + ltc.toFixed(6));
+            } else {
+                $("amount-ltc").textContent = "Send \u2248 $" + amt + " in LTC";
+                $("qr-ltc").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
+                    encodeURIComponent("litecoin:" + SITE.ltcAddress);
+            }
+            if (solUsd) {
+                const sol = amt / solUsd;
+                $("amount-sol").textContent = amt.toFixed(2) + " USD \u2248 " + F.format(sol) + " SOL";
+                $("qr-sol").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
+                    encodeURIComponent("solana:" + SITE.solAddress + "?amount=" + sol.toFixed(6));
+            } else {
+                $("amount-sol").textContent = "Send \u2248 $" + amt + " in SOL";
+                $("qr-sol").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
+                    encodeURIComponent("solana:" + SITE.solAddress);
+            }
+            $("addr-ltc").textContent = SITE.ltcAddress;
+            $("addr-sol").textContent = SITE.solAddress;
+            $("paypalLink").href = "https://paypal.me/" + SITE.paypalHandle + "/" + SITE.price;
+        }
+
+        function switchPay(method) {
+            document.querySelectorAll(".pay-tab").forEach(t => t.classList.toggle("active", t.dataset.pay === method));
+            document.querySelectorAll(".pay-pane").forEach(p => p.style.display = "none");
+            $("pane-" + method).style.display = "block";
+            $("buyMsg").textContent = "";
+        }
+
+        function copyAddr(field, tip) {
+            const el = $("addr-" + field);
+            const copy = $("copy" + field.charAt(0).toUpperCase() + field.slice(1));
+            try {
+                navigator.clipboard.writeText(el.textContent);
+            } catch (e) { /* older browsers */ }
+            copy.textContent = "Copied!";
+            setTimeout(() => copy.textContent = tip, 1500);
+        }
+
+        $("buyBtn").onclick = () => {
+            $("checkoutModal").classList.add("show");
+            loadPrices();
+        };
+        $("closeBuy").onclick = () => $("checkoutModal").classList.remove("show");
+        $("checkoutModal").onclick = e => { if (e.target === $("checkoutModal")) $("checkoutModal").classList.remove("show"); };
+        document.querySelectorAll(".pay-tab").forEach(t => t.onclick = () => switchPay(t.dataset.pay));
+        $("copyLtc").onclick = () => copyAddr("ltc", "Copy address");
+        $("copySol").onclick = () => copyAddr("sol", "Copy address");
+        $("buyUsername").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); document.querySelector(".pay-tab.active").click(); } });
     </script>
 </body>
 </html>
