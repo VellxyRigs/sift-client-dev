@@ -99,8 +99,8 @@ capture shows **COMPLETED** and **$20.00 USD** → reveals the code.
 - Send a small LTC or SOL payment to the wallet, then from the browser console:
   `fetch("https://…worker…/claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:"TestUser1",currency:"ltc"})})`
   → confirm it returns `{"ok":true,"code":"…",...}` once the tx confirms. For SOL use
-  `currency:"sol"` (native SOL or USDC both work). For PayPal, complete a real $1 test
-  payment in the browser button and it claims automatically.
+  `currency:"sol"` (native SOL or USDC both work). For PayPal, complete a real $20 test
+  payment in the browser button and it claims automatically. Orders under $20 are rejected.
 - Run it again with a different username → same code back (`already:true`).
 - Buyer then opens the **Sift Client** launcher, **Lite** tab, signs in with the
   account named `TestUser1`, pastes the code, and it activates.
