@@ -854,7 +854,7 @@
             <h1>Elevate Your <span>Minecraft</span> Game</h1>
             <p>Sift Client is a free, modern Minecraft enhancement launcher. Clean, fast, and built for performance — no bloat, no catches.</p>
             <div class="button-group">
-                <a href="#download" class="btn btn-primary">Download Free</a>
+                <a href="#" id="heroDownload" class="btn btn-primary">Download Free</a>
                 <a href="#lite" class="btn btn-secondary">&#9733; Unlock Lite</a>
             </div>
         </div>
@@ -968,15 +968,15 @@
     <section class="download" id="download">
         <h2>Ready to <span>Upgrade?</span></h2>
         <p>Join players already using Sift. Download the free launcher now and experience the difference.</p>
-        <a href="#" class="btn btn-primary">Download Latest Version</a>
+        <a href="#" id="downloadBtn" class="btn btn-primary">Download Latest Version</a>
         <div class="version-info">
             <div class="version-tag">
                 <span class="label">Version:</span>
-                <span class="value">1.0.0</span>
+                <span class="value" id="verTag">1.0.0</span>
             </div>
             <div class="version-tag">
                 <span class="label">Size:</span>
-                <span class="value">~230 MB</span>
+                <span class="value">~334 MB</span>
             </div>
             <div class="version-tag">
                 <span class="label">MC Version:</span>
@@ -1110,6 +1110,8 @@
         // ================================================================
         const SITE = {
             price: 20,                                  // USD
+            downloadUrl: "https://github.com/VellxyRigs/sift-client-dev/releases/latest/download/Sift%20Client%20Setup.exe", // Sift Client Setup.exe (Windows installer)
+            version: "1.0.0",
             paypalUrl: "https://www.paypal.com/ncp/payment/L9ASEL9FN8KS4", // PayPal checkout page (fallback)
             paypalClientId: "", // PayPal REST app Client ID - enables the automatic in-page button
             paypalHostedButtonId: "L9ASEL9FN8KS4", // your hosted button id from the PayPal dashboard
@@ -1292,6 +1294,17 @@ function switchPay(method) {
         $("getCodeSol").onclick = () => claimFor("sol");
         $("getCodePaypal").onclick = () => claimFor("paypal", pendingPaypalOrder);
         initPayPal();
+
+        // ---- downloads: both buttons grab the latest Sift Client Setup ----
+        ["downloadBtn", "heroDownload"].forEach(id => {
+            const el = $(id);
+            if (!el) return;
+            el.href = SITE.downloadUrl;
+            el.setAttribute("download", "");
+            el.target = "_blank";
+            el.rel = "noopener";
+        });
+        if ($("verTag")) $("verTag").textContent = SITE.version;
         $("copySol").onclick = () => copyAddr("sol", "Copy address");
         $("buyUsername").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); document.querySelector(".pay-tab.active").click(); } });
     </script>
