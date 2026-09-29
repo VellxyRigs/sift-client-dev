@@ -968,7 +968,23 @@
     <section class="download" id="download">
         <h2>Ready to <span>Upgrade?</span></h2>
         <p>Join players already using Sift. Download the free launcher now and experience the difference.</p>
-        <a href="#" id="downloadBtn" class="btn btn-primary">Download Latest Version</a>
+        <a href="#" id="downloadBtn" class="btn btn-primary">Download &amp; Install</a>
+        <p style="margin-top:.85rem;font-size:.85rem;opacity:.75;">Windows &middot; one installer &middot; free forever</p>
+        <div id="installHelp" style="display:none;margin-top:1.5rem;padding:1.5rem;border:1px solid rgba(0,212,255,.3);border-radius:14px;background:rgba(0,212,255,.05);text-align:left;max-width:640px;margin-left:auto;margin-right:auto;">
+            <div style="font-weight:800;font-size:1.1rem;margin-bottom:.5rem;">&#10003; Your download has started</div>
+            <p style="font-size:.92rem;opacity:.85;margin-bottom:1rem;">To finish installing, Windows needs one click from you:</p>
+            <ol style="font-size:.92rem;line-height:1.85;padding-left:1.2rem;margin:0 0 1rem;">
+                <li>Open your <b>Downloads</b> folder (or your browser's downloads bar).</li>
+                <li>Double-click <b>Sift.Client.Setup.exe</b>.</li>
+                <li>If Windows shows "Windows protected your PC", click <b>More info</b> &rarr; <b>Run anyway</b>.</li>
+            </ol>
+            <div style="font-size:.9rem;font-weight:700;margin-bottom:.4rem;">Prefer one command? Open PowerShell and paste:</div>
+            <div style="display:flex;gap:.5rem;align-items:stretch;">
+                <code id="installCmd" style="flex:1;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:.65rem .8rem;font-family:Consolas,Menlo,monospace;font-size:.78rem;color:var(--secondary);word-break:break-all;overflow-wrap:anywhere;"></code>
+                <button class="btn btn-secondary" id="copyInstallCmd" style="white-space:nowrap;">Copy</button>
+            </div>
+            <p style="font-size:.82rem;opacity:.7;margin-top:.85rem;">That downloads and installs Sift Client automatically, then opens it.</p>
+        </div>
         <div class="version-info">
             <div class="version-tag">
                 <span class="label">Version:</span>
@@ -1303,8 +1319,30 @@ function switchPay(method) {
             el.setAttribute("download", "");
             el.target = "_blank";
             el.rel = "noopener";
+            el.addEventListener("click", () => {
+                // browsers cannot run a file they just downloaded, so hand off the last step
+                const help = $("installHelp");
+                if (help) help.style.display = "block";
+            });
         });
         if ($("verTag")) $("verTag").textContent = SITE.version;
+        if ($("installCmd")) {
+            $("installCmd").textContent = 'iwr -useb "' + SITE.downloadUrl + '" -o "$env:TEMP\\SiftClientSetup.exe"; Start-Process "$env:TEMP\\SiftClientSetup.exe"';
+        }
+        $("copyInstallCmd").onclick = async () => {
+            const btn = $("copyInstallCmd");
+            const txt = $("installCmd").textContent;
+            try {
+                await navigator.clipboard.writeText(txt);
+                btn.textContent = "Copied!";
+            } catch (e) {
+                const ta = document.createElement("textarea");
+                ta.value = txt; document.body.appendChild(ta); ta.select();
+                try { document.execCommand("copy"); btn.textContent = "Copied!"; } catch (e2) { btn.textContent = "Press Ctrl+C"; }
+                document.body.removeChild(ta);
+            }
+            setTimeout(() => (btn.textContent = "Copy"), 2000);
+        };
         $("copySol").onclick = () => copyAddr("sol", "Copy address");
         $("buyUsername").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); document.querySelector(".pay-tab.active").click(); } });
     </script>
