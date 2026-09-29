@@ -1079,46 +1079,40 @@
         const $ = id => document.getElementById(id);
         const F = Intl.NumberFormat("en-US", { minimumFractionDigits: 6, maximumFractionDigits: 6 });
 
-        // Live crypto price feed (CoinGecko, public + CORS-enabled)
-        let ltcUsd = null, solUsd = null;
+        // Live crypto price feed (CoinGecko, public + CORS-enabled) - best effort only;
+        // addresses + QR always render regardless of whether the feed responds.
         async function loadPrices() {
+            let j = null;
             try {
                 const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=litecoin,solana&vs_currencies=usd");
-                const j = await r.json();
-                ltcUsd = j && j.litecoin ? j.litecoin.usd : null;
-                solUsd = j && j.solana ? j.solana.usd : null;
-                refreshAmounts();
-            } catch (e) { /* price feed unavailable — keep fallback text */ }
+                if (r.ok) j = await r.json();
+            } catch (e) { /* price feed unavailable - fallback text stays */ }
+            if (j && j.litecoin && j.litecoin.usd > 0) {
+                const v = SITE.price / j.litecoin.usd;
+                $("amount-ltc").textContent = SITE.price.toFixed(2) + " USD \u2248 " + F.format(v) + " LTC";
+                $("qr-ltc").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
+                    encodeURIComponent("litecoin:" + SITE.ltcAddress + "?amount=" + v.toFixed(6));
+            }
+            if (j && j.solana && j.solana.usd > 0) {
+                const v = SITE.price / j.solana.usd;
+                $("amount-sol").textContent = SITE.price.toFixed(2) + " USD \u2248 " + F.format(v) + " SOL";
+                $("qr-sol").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
+                    encodeURIComponent("solana:" + SITE.solAddress + "?amount=" + v.toFixed(6));
+            }
         }
 
-        function refreshAmounts() {
-            const amt = SITE.price;
-            if (ltcUsd) {
-                const ltc = amt / ltcUsd;
-                $("amount-ltc").textContent = amt.toFixed(2) + " USD \u2248 " + F.format(ltc) + " LTC";
-                $("qr-ltc").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
-                    encodeURIComponent("litecoin:" + SITE.ltcAddress + "?amount=" + ltc.toFixed(6));
-            } else {
-                $("amount-ltc").textContent = "Send \u2248 $" + amt + " in LTC";
-                $("qr-ltc").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
-                    encodeURIComponent("litecoin:" + SITE.ltcAddress);
-            }
-            if (solUsd) {
-                const sol = amt / solUsd;
-                $("amount-sol").textContent = amt.toFixed(2) + " USD \u2248 " + F.format(sol) + " SOL";
-                $("qr-sol").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
-                    encodeURIComponent("solana:" + SITE.solAddress + "?amount=" + sol.toFixed(6));
-            } else {
-                $("amount-sol").textContent = "Send \u2248 $" + amt + " in SOL";
-                $("qr-sol").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
-                    encodeURIComponent("solana:" + SITE.solAddress);
-            }
+        function setCryptoVisuals() {
             $("addr-ltc").textContent = SITE.ltcAddress;
             $("addr-sol").textContent = SITE.solAddress;
+            $("amount-ltc").textContent = "Send \u2248 $" + SITE.price + " in LTC";
+            $("amount-sol").textContent = "Send \u2248 $" + SITE.price + " in SOL";
+            $("qr-ltc").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
+                encodeURIComponent("litecoin:" + SITE.ltcAddress);
+            $("qr-sol").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
+                encodeURIComponent("solana:" + SITE.solAddress);
             $("paypalLink").href = SITE.paypalUrl;
         }
-
-        function switchPay(method) {
+function switchPay(method) {
             document.querySelectorAll(".pay-tab").forEach(t => t.classList.toggle("active", t.dataset.pay === method));
             document.querySelectorAll(".pay-pane").forEach(p => p.style.display = "none");
             $("pane-" + method).style.display = "block";
@@ -1137,6 +1131,7 @@
 
         $("buyBtn").onclick = () => {
             $("checkoutModal").classList.add("show");
+            setCryptoVisuals();
             loadPrices();
         };
         $("closeBuy").onclick = () => $("checkoutModal").classList.remove("show");
