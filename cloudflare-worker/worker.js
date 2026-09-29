@@ -45,6 +45,12 @@ const CONFIG = {
       "https://solana-rpc.publicnode.com",
       "https://api.rpcpool.com"
     ]
+  },
+
+  PAYPAL: {
+    name: "paypal",
+    tokenUrl: "https://api-m.paypal.com/v1/oauth2/token",
+    ordersUrl: "https://api-m.paypal.com/v2/checkout/orders/"
   }
 };
 
@@ -199,6 +205,45 @@ async function scanSolPayments(now, nativeThr, usdcThr) {
   return best;
 }
 
+// ---------------------------------------------------------------- PayPal
+async function paypalToken(env) {
+  try {
+    const cached = await env.POOL.get("paypal_token");
+    if (cached) return cached;
+  } catch (e) {}
+  const auth = btoa(String(env.PAYPAL_CLIENT_ID || "") + ":" + String(env.PAYPAL_CLIENT_SECRET || ""));
+  const r = await fetch(CONFIG.PAYPAL.tokenUrl, {
+    method: "POST",
+    headers: {
+      "Authorization": "Basic " + auth,
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: "grant_type=client_credentials"
+  });
+  if (!r.ok) throw new Error("paypal auth " + r.status);
+  const j = await r.json();
+  if (!j.access_token) throw new Error("paypal auth no token");
+  try { await env.POOL.put("paypal_token", j.access_token, { expirationTtl: 32400 }); } catch (e) {}
+  return j.access_token;
+}
+
+// Confirms an order is captured on PayPal for >= the target in USD.
+async function paypalOrder(orderId, env) {
+  const token = await paypalToken(env);
+  const r = await fetch(CONFIG.PAYPAL.ordersUrl + encodeURIComponent(orderId), {
+    headers: { "Authorization": "Bearer " + token }
+  });
+  if (!r.ok) throw new Error("paypal order " + r.status);
+  const o = await r.json();
+  const pu = (o && o.purchase_units) || [];
+  const cap = pu[0] && pu[0].payments && pu[0].payments.captures && pu[0].payments.captures[0];
+  if (o && o.status === "COMPLETED" && cap && cap.status === "COMPLETED" && cap.amount &&
+      cap.amount.currency_code === "USD" && parseFloat(cap.amount.value) >= CONFIG.TARGET_USD) {
+    return { txid: orderId, received: parseFloat(cap.amount.value), kind: "paypal", time: Date.now() };
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------- claim
 const rate = new Map(); // ip -> timestamps
 
@@ -214,19 +259,26 @@ async function claim(request, env) {
   try { body = await request.json(); } catch (e) { return json({ ok: false, reason: "bad_request" }); }
   const username = String(body.username || "").trim();
   if (!CONFIG.USERNAME_RE.test(username)) return json({ ok: false, reason: "invalid_username" });
-  const currency = body.currency === "sol" ? "sol" : "ltc";
-
-  const px = await prices(env);
-  const cur = currency === "ltc" ? CONFIG.LTC : CONFIG.SOL;
-  const thr = currency === "ltc" ? threshold("ltc", px.ltc) : threshold("sol", px.sol);
-  const usdcThr = currency === "sol" ? CONFIG.TARGET_USD * CONFIG.ACCEPT_RATIO : 0;
+  const currency = body.currency === "sol" ? "sol" : body.currency === "paypal" ? "paypal" : "ltc";
 
   let pay = null;
-  try {
-    if (currency === "ltc") pay = findLtcPayment(await ltcTxs(), thr, now);
-    else pay = await scanSolPayments(now, thr, usdcThr);
-  } catch (e) {
-    return json({ ok: false, reason: "chain_unavailable" });
+  let priceUsd = 0;
+  if (currency === "paypal") {
+    const orderId = String(body.orderId || "").trim();
+    if (!orderId) return json({ ok: false, reason: "bad_request" });
+    try { pay = await paypalOrder(orderId, env); }
+    catch (e) { return json({ ok: false, reason: "chain_unavailable" }); }
+  } else {
+    const px = await prices(env);
+    priceUsd = currency === "ltc" ? px.ltc : px.sol;
+    const thr = currency === "ltc" ? threshold("ltc", px.ltc) : threshold("sol", px.sol);
+    const usdcThr = currency === "sol" ? CONFIG.TARGET_USD * CONFIG.ACCEPT_RATIO : 0;
+    try {
+      if (currency === "ltc") pay = findLtcPayment(await ltcTxs(), thr, now);
+      else pay = await scanSolPayments(now, thr, usdcThr);
+    } catch (e) {
+      return json({ ok: false, reason: "chain_unavailable" });
+    }
   }
   if (!pay) return json({ ok: false, reason: "no_payment" });
 
@@ -247,7 +299,7 @@ async function claim(request, env) {
   return json({
     ok: true, code, txid: pay.txid, currency,
     already: false,
-    priceUSD: currency === "ltc" ? px.ltc : px.sol,
+    priceUSD: priceUsd,
     received: pay.received,
     kind: pay.kind || currency
   });

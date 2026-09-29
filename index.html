@@ -1010,8 +1010,16 @@
             </div>
 
             <div class="pay-pane" id="pane-paypal">
-                <p class="modal-text">Opens PayPal in a new tab. Send your Minecraft username with the payment so we can bind your code.</p>
+                <p class="modal-text">Pay securely with PayPal. Your code unlocks automatically once your payment is confirmed.</p>
+                <div id="paypalBtn"></div>
+                <button class="btn btn-primary btn-block" id="getCodePaypal" style="display:none">Get my code</button>
                 <a id="paypalLink" class="btn btn-primary btn-block" target="_blank" rel="noopener">Pay $20.00 with PayPal</a>
+                <div class="modal-status" id="paypalMsg"></div>
+                <div id="paypalGrant" style="display:none;margin-top:.75rem;padding:1rem;border:1px solid rgba(0,212,255,.3);border-radius:10px;background:rgba(0,212,255,.06);">
+                    <div style="font-weight:800;margin-bottom:.5rem;">&#10003; Payment confirmed &mdash; your Lite code</div>
+                    <div id="paypalCodeValue" style="font-family:Consolas,Menlo,monospace;font-size:1.25rem;letter-spacing:2px;color:var(--secondary);word-break:break-all;margin-bottom:.75rem;">&hellip;</div>
+                    <div class="modal-text" style="font-size:.85rem;">Redeem it in the <b>Sift Client</b> launcher under the <b>&#9733; Lite</b> tab, signed in with the Minecraft account above.</div>
+                </div>
             </div>
 
             <div class="pay-pane" id="pane-ltc" style="display:none">
@@ -1102,7 +1110,9 @@
         // ================================================================
         const SITE = {
             price: 20,                                  // USD
-            paypalUrl: "https://www.paypal.com/ncp/payment/L9ASEL9FN8KS4", // PayPal checkout page
+            paypalUrl: "https://www.paypal.com/ncp/payment/L9ASEL9FN8KS4", // PayPal checkout page (fallback)
+            paypalClientId: "", // PayPal REST app Client ID - enables the automatic in-page button
+            paypalHostedButtonId: "L9ASEL9FN8KS4", // your hosted button id from the PayPal dashboard
             ltcAddress: "LKnxoffLk7mrHrtQDxL9FKWqmUeCD8iKVA", // Litecoin receiving wallet
             solAddress: "5itMqG3gNTFYbxXDM7X2Y4q6U7WZijPAb98SayuJzSw6", // Solana receiving wallet
             grantService: ""  // Cloudflare Worker URL for automatic LTC+SOL grants, e.g. "https://sift-lite-grant.<you>.workers.dev"
@@ -1176,29 +1186,38 @@ function switchPay(method) {
             loadPrices();
         };
 
-        // ---- auto-grant: ask the Worker to verify payment on-chain (LTC, SOL or USDC) ----
-        const claimTimers = { ltc: null, sol: null };
-        async function claimFor(currency) {
+        // ---- auto-grant: ask the Worker to verify the payment (LTC, SOL/USDC or PayPal) ----
+        const claimTimers = { ltc: null, sol: null, paypal: null };
+        const CLAIM_UI = {
+            ltc:    { msg: "ltcMsg",    grant: "ltcGrant",    code: "ltcCodeValue",    net: "Litecoin" },
+            sol:    { msg: "solMsg",    grant: "solGrant",    code: "solCodeValue",    net: "Solana" },
+            paypal: { msg: "paypalMsg", grant: "paypalGrant", code: "paypalCodeValue", net: "PayPal" }
+        };
+        async function claimFor(currency, orderId) {
             const user = $("buyUsername").value.trim();
-            const msgEl = $(currency === "ltc" ? "ltcMsg" : "solMsg");
-            const grantEl = $(currency === "ltc" ? "ltcGrant" : "solGrant");
-            const codeEl = $(currency === "ltc" ? "ltcCodeValue" : "solCodeValue");
+            const ui = CLAIM_UI[currency];
+            const msgEl = $(ui.msg), grantEl = $(ui.grant), codeEl = $(ui.code);
             msgEl.textContent = "";
             if (!/^[A-Za-z0-9_]{3,16}$/.test(user)) { msgEl.textContent = "Enter your Minecraft username first (letters, numbers, underscore, 3\u201316)."; return; }
             const svc = SITE.grantService;
             if (!svc) {
-                msgEl.textContent = "Send the payment and include your Minecraft username in the transaction note \u2014 your code is sent once the payment is confirmed.";
+                msgEl.textContent = "Send the payment and include your Minecraft username in the payment note \u2014 your code is sent once the payment is confirmed.";
                 return;
             }
+            const body = { username: user, currency };
+            if (currency === "paypal") {
+                if (!orderId) { msgEl.textContent = "Complete the PayPal payment first, then this unlocks your code."; return; }
+                body.orderId = orderId;
+            }
             clearInterval(claimTimers[currency]);
-            msgEl.textContent = "Checking the " + (currency === "ltc" ? "Litecoin" : "Solana") + " network\u2026";
+            msgEl.textContent = "Checking your " + ui.net + " payment\u2026";
             const tryClaim = async () => {
                 let j = null;
                 try {
                     const r = await fetch(svc + "/claim", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ username: user, currency })
+                        body: JSON.stringify(body)
                     });
                     j = await r.json();
                 } catch (e) { j = null; }
@@ -1211,7 +1230,7 @@ function switchPay(method) {
                 }
                 const reason = j && j.reason ? j.reason : "unreachable";
                 if (reason === "no_payment") {
-                    msgEl.textContent = "No matching payment yet \u2014 I\u2019ll keep checking for up to 5 minutes. It usually takes 2\u20135 minutes after you send it.";
+                    msgEl.textContent = "No confirmed payment yet \u2014 I\u2019ll keep checking for up to " + (currency === "paypal" ? "2 minutes" : "5 minutes") + ".";
                     return;
                 }
                 clearInterval(claimTimers[currency]);
@@ -1219,12 +1238,48 @@ function switchPay(method) {
                     reason === "sold_out" ? "All Lite codes are sold out right now \u2014 contact us." :
                     reason === "slow_down" ? "Too many checks \u2014 wait a moment and click again." :
                     reason === "invalid_username" ? "Enter your Minecraft username (letters, numbers, underscore, 3\u201316)." :
-                    reason === "chain_unavailable" ? "The network check hiccuped \u2014 click again in a few seconds." :
+                    reason === "chain_unavailable" ? "The payment check hiccuped \u2014 click again in a few seconds." :
                     "Couldn\u2019t verify right now \u2014 click again in a moment.";
             };
             tryClaim();
-            claimTimers[currency] = setInterval(tryClaim, 8000);
-            setTimeout(() => clearInterval(claimTimers[currency]), 5 * 60 * 1000);
+            claimTimers[currency] = setInterval(tryClaim, 6000);
+            setTimeout(() => clearInterval(claimTimers[currency]), (currency === "paypal" ? 120 : 300) * 1000);
+        }
+
+        // ---- PayPal hosted-button integration (auto-grant via order id) ----
+        let pendingPaypalOrder = null;
+        function initPayPal() {
+            if (!SITE.paypalClientId) return; // not configured: plain link stays the fallback
+            const sdkUrl = "https://www.paypal.com/sdk/js?client-id=" + encodeURIComponent(SITE.paypalClientId) +
+                "&currency=USD&intent=capture&components=buttons";
+            const s = document.createElement("script");
+            s.src = sdkUrl;
+            s.onload = () => {
+                if (!window.paypal || !paypal.HostedButtons) return;
+                $("paypalLink").style.display = "none";
+                $("getCodePaypal").style.display = "none";
+                paypal.HostedButtons({
+                    hostedButtonId: SITE.paypalHostedButtonId,
+                    onApprove: (data) => {
+                        if (data && data.orderID) pendingPaypalOrder = data.orderID;
+                        const user = $("buyUsername").value.trim();
+                        if (/^[A-Za-z0-9_]{3,16}$/.test(user) && pendingPaypalOrder) {
+                            claimFor("paypal", pendingPaypalOrder);
+                        } else {
+                            $("paypalMsg").textContent = "Enter your Minecraft username above, then click \u2018Get my code\u2019.";
+                            $("getCodePaypal").style.display = "block";
+                        }
+                    },
+                    onCancel: () => {
+                        pendingPaypalOrder = null;
+                        $("paypalMsg").textContent = "Payment cancelled \u2014 you were not charged.";
+                    },
+                    onError: () => {
+                        $("paypalMsg").textContent = "PayPal ran into an issue \u2014 try again or use the pay link.";
+                    }
+                }).render("#paypalBtn");
+            };
+            document.body.appendChild(s);
         }
 
         window.__siftBoot = "all";
@@ -1235,6 +1290,8 @@ function switchPay(method) {
         $("copySol").onclick = () => copyAddr("sol", "Copy address");
         $("getCodeLtc").onclick = () => claimFor("ltc");
         $("getCodeSol").onclick = () => claimFor("sol");
+        $("getCodePaypal").onclick = () => claimFor("paypal", pendingPaypalOrder);
+        initPayPal();
         $("copySol").onclick = () => copyAddr("sol", "Copy address");
         $("buyUsername").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); document.querySelector(".pay-tab.active").click(); } });
     </script>
