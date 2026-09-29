@@ -1040,7 +1040,24 @@
         </div>
     </div>
 
+    <div id="jsErr" style="display:none;position:fixed;left:0;right:0;top:0;z-index:99999;background:#c0392b;color:#fff;padding:8px 16px;font:13px/1.45 monospace;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4);"></div>
     <script>
+        window.setTimeout(function () {
+            var b = document.getElementById("jsErr");
+            if (b && window.__siftBoot !== "all") {
+                b.style.display = "block";
+                b.textContent = "JavaScript didn't start or stopped early. An extension may be blocking it, or the browser is outdated. Use an up-to-date browser and disable blockers for this page.";
+            }
+        }, 2500);
+        window.addEventListener("error", function (ev) {
+            try {
+                var b = document.getElementById("jsErr");
+                if (b) { b.style.display = "block"; b.textContent = "Script error: " + (ev.message || "unknown") + " (line " + (ev.lineno || "?") + ")"; }
+            } catch (e) { }
+        });
+    </script>
+    <script>
+        window.__siftBoot = "top";
         // Smooth scroll for nav links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
@@ -1134,6 +1151,8 @@ function switchPay(method) {
             setCryptoVisuals();
             loadPrices();
         };
+
+        window.__siftBoot = "all";
         $("closeBuy").onclick = () => $("checkoutModal").classList.remove("show");
         $("checkoutModal").onclick = e => { if (e.target === $("checkoutModal")) $("checkoutModal").classList.remove("show"); };
         document.querySelectorAll(".pay-tab").forEach(t => t.onclick = () => switchPay(t.dataset.pay));
