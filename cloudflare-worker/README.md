@@ -52,6 +52,11 @@ wrangler deploy
 wrangler kv key put --binding=POOL codes '["BBV7-NNYA...."]'
 ```
 
+**One-click script:** a `deploy-worker.bat` is included. After installing wrangler
+and putting your namespace id in `wrangler.toml`, just double-click it: it logs you
+in, deploys the Worker, loads `pool-seed.json` into KV, and prompts for the PayPal
+secrets. (`pool-seed.json` holds real codes and is git-ignored — keep it local.)
+
 ## 4. Wire up the site
 
 In `index.html` → **PAYMENT SETTINGS** → set:

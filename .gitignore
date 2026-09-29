@@ -1,0 +1,5 @@
+# local-only secret material — never commit
+pool-seed.json
+*.secret
+.wrangler/
+node_modules/
