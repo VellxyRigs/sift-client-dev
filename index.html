@@ -929,10 +929,10 @@
                 <h2 class="section-title">How to <span>Redeem</span></h2>
                 <p class="section-sub">It takes about 30 seconds. Codes are single-use and locked to the Minecraft username you provide.</p>
                 <div class="steps">
-                    <div class="step"><div class="num"></div><p>Contact us on Discord (or via LTC / SOL / PayPal payment) and grab your code.</p></div>
+                    <div class="step"><div class="num"></div><p>Choose the <b>Permanent</b> plan above and pay with PayPal, LTC, or SOL.</p></div>
+                    <div class="step"><div class="num"></div><p>After paying, send us an email proof (button in the checkout screen) — we confirm and reply with your code.</p></div>
                     <div class="step"><div class="num"></div><p>Open the <b>Sift Client</b> launcher and sign in with your Microsoft account.</p></div>
-                    <div class="step"><div class="num"></div><p>Go to the <b>&#9733; Lite</b> tab and paste in your code.</p></div>
-                    <div class="step"><div class="num"></div><p>Launch any instance. Your private boost is now active.</p></div>
+                    <div class="step"><div class="num"></div><p>Go to the <b>&#9733; Lite</b> tab, paste in your code, launch any instance. Done.</p></div>
                 </div>
             </div>
         </div>
@@ -989,7 +989,7 @@
     <footer id="footer">
         <div>
             <div class="footer-links">
-                <a href="#">Discord</a>
+                <a href="mailto:YOUR@EMAIL.COM">Contact</a>
                 <a href="https://github.com/VellxyRigs/sift-client-dev" target="_blank" rel="noopener">GitHub</a>
                 <a href="#">Docs</a>
                 <a href="#">Support</a>
@@ -1011,24 +1011,27 @@
             </div>
 
             <div class="pay-pane" id="pane-paypal">
-                <p class="modal-text">Opens PayPal in a new tab. Add your Minecraft username as the note so we can match your code.</p>
+                <p class="modal-text">Opens PayPal in a new tab. Pay there, then click "Email proof" below so we can match your code.</p>
                 <a id="paypalLink" class="btn btn-primary btn-block" target="_blank" rel="noopener">Pay $20.00 with PayPal</a>
+                <button class="copy-btn" id="proofPaypal" style="margin-top:0.75rem">Email proof</button>
             </div>
 
             <div class="pay-pane" id="pane-ltc" style="display:none">
-                <p class="modal-text">Send the USD equivalent in LTC to this address, then DM proof on Discord so we can mint your code.</p>
+                <p class="modal-text">Send the USD equivalent in LTC to this address, then click "Email proof" below so we can mint your code.</p>
                 <img id="qr-ltc" class="qr" alt="LTC QR code">
                 <div class="addr" id="addr-ltc">&hellip;</div>
                 <div class="amount" id="amount-ltc">Loading LTC price&hellip;</div>
                 <button class="copy-btn" id="copyLtc">Copy address</button>
+                <button class="copy-btn" id="proofLtc" style="margin-left:0.5rem">Email proof</button>
             </div>
 
             <div class="pay-pane" id="pane-sol" style="display:none">
-                <p class="modal-text">Send the USD equivalent in SOL to this address, then DM proof on Discord so we can mint your code.</p>
+                <p class="modal-text">Send the USD equivalent in SOL to this address, then click "Email proof" below so we can mint your code.</p>
                 <img id="qr-sol" class="qr" alt="SOL QR code">
                 <div class="addr" id="addr-sol">&hellip;</div>
                 <div class="amount" id="amount-sol">Loading SOL price&hellip;</div>
                 <button class="copy-btn" id="copySol">Copy address</button>
+                <button class="copy-btn" id="proofSol" style="margin-left:0.5rem">Email proof</button>
             </div>
 
             <label class="memory-label" for="buyUsername">Your Minecraft username (the code is locked to it)</label>
@@ -1075,7 +1078,7 @@
             paypalUrl: "https://www.paypal.com/ncp/payment/L9ASEL9FN8KS4", // PayPal checkout page
             ltcAddress: "LKnxoffLk7mrHrtQDxL9FKWqmUeCD8iKVA", // Litecoin receiving wallet
             solAddress: "5itMqG3gNTFYbxXDM7X2Y4q6U7WZijPAb98SayuJzSw6", // Solana receiving wallet
-            discord: "https://discord.gg/YOUR_INVITE"   // where buyers DM proof / get codes
+            contactEmail: "YOUR@EMAIL.COM"              // where buyers email proof / get codes
         };
 
         const $ = id => document.getElementById(id);
@@ -1137,6 +1140,21 @@
             setTimeout(() => copy.textContent = tip, 1500);
         }
 
+        function emailProof(method) {
+            const user = $("buyUsername").value.trim();
+            if (!user) { $("buyMsg").textContent = "Enter your Minecraft username first so we can bind the code."; return; }
+            const subject = encodeURIComponent("Sift Lite order — " + user);
+            let body = "Plan: Sift Lite — Permanent ($" + SITE.price + ")\n";
+            body += "Minecraft username: " + user + "\n";
+            body += "Paid with: " + method.toUpperCase() + "\n";
+            body += "Amount sent: ...\n";
+            body += "Transaction ID / receipt: ...\n\n";
+            body += "Sent from the Sift Client website.";
+            const href = "mailto:" + SITE.contactEmail + "?subject=" + subject + "&body=" + encodeURIComponent(body);
+            window.location.href = href;
+            $("buyMsg").textContent = "Your mail app should open — send it and we'll reply with your code.";
+        }
+
         $("buyBtn").onclick = () => {
             $("checkoutModal").classList.add("show");
             loadPrices();
@@ -1146,6 +1164,9 @@
         document.querySelectorAll(".pay-tab").forEach(t => t.onclick = () => switchPay(t.dataset.pay));
         $("copyLtc").onclick = () => copyAddr("ltc", "Copy address");
         $("copySol").onclick = () => copyAddr("sol", "Copy address");
+        $("proofLtc").onclick = () => emailProof("ltc");
+        $("proofSol").onclick = () => emailProof("sol");
+        $("proofPaypal").onclick = () => emailProof("paypal");
         $("buyUsername").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); document.querySelector(".pay-tab.active").click(); } });
     </script>
 </body>
