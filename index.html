@@ -1071,11 +1071,11 @@
         //  PAYMENT SETTINGS — paste your real info here
         // ================================================================
         const SITE = {
-            price: 20,                                   // USD
-            paypalHandle: "YOUR_PAYPAL_HANDLE",          // your PayPal.Me handle (paypal.me/<handle>)
-            ltcAddress: "YOUR_LTC_ADDRESS",              // Litecoin receiving wallet
-            solAddress: "YOUR_SOL_ADDRESS",              // Solana receiving wallet
-            discord: "https://discord.gg/YOUR_INVITE"    // where buyers DM proof / get codes
+            price: 20,                                  // USD
+            paypalUrl: "https://www.paypal.com/ncp/payment/L9ASEL9FN8KS4", // PayPal checkout page
+            ltcAddress: "YOUR_LTC_ADDRESS",             // Litecoin receiving wallet
+            solAddress: "YOUR_SOL_ADDRESS",             // Solana receiving wallet
+            discord: "https://discord.gg/YOUR_INVITE"   // where buyers DM proof / get codes
         };
 
         const $ = id => document.getElementById(id);
@@ -1117,7 +1117,7 @@
             }
             $("addr-ltc").textContent = SITE.ltcAddress;
             $("addr-sol").textContent = SITE.solAddress;
-            $("paypalLink").href = "https://paypal.me/" + SITE.paypalHandle + "/" + SITE.price;
+            $("paypalLink").href = SITE.paypalUrl;
         }
 
         function switchPay(method) {
